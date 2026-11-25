@@ -51,6 +51,8 @@ def fetch(cfg: dict, week: Week, fixtures: Path | None = None) -> list[dict]:
     today = week.run_date
     rows: list[dict] = []
     discovered: dict[str, dict] = {}
+    # «Impressions by date» в Ad Library: объявления, у которых были показы в окне
+    dates = {"start_date": week.start.isoformat(), "end_date": week.end.isoformat()}
 
     for comp in cfg["competitors"]:
         name = comp["name"]
@@ -69,9 +71,9 @@ def fetch(cfg: dict, week: Week, fixtures: Path | None = None) -> list[dict]:
                 targets = []
                 if platform == "facebook":
                     for pid in pcfg.get("page_ids") or []:
-                        targets.append(acfg["url_by_page"].format(page_id=pid))
+                        targets.append(acfg["url_by_page"].format(page_id=pid, **dates))
                     if not targets:
-                        targets.append(acfg["url_by_query"].format(query=urllib.parse.quote(pcfg["query"])))
+                        targets.append(acfg["url_by_query"].format(query=urllib.parse.quote(pcfg["query"]), **dates))
                 else:
                     targets.append(None)
                 for url in targets:
