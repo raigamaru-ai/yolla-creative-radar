@@ -1,0 +1,8 @@
+apify-client>=1.7
+google-api-python-client>=2.100
+google-auth>=2.23
+PyYAML>=6.0
+Markdown>=3.5
+requests>=2.31
+imageio-ffmpeg>=0.4.9
+faster-whisper>=1.0

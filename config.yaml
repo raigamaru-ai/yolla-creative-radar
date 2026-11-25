@@ -1,0 +1,75 @@
+# Yolla Creative Radar — настройки еженедельного анализа креативов конкурентов.
+# Секреты (APIFY_TOKEN, GOOGLE_SERVICE_ACCOUNT_JSON) сюда НЕ кладём — только в переменные окружения.
+
+window_days: 7            # анализируем предыдущие 7 дней до дня запуска (не включая сам день запуска)
+lookback_days_tiktok: 90  # TikTok Library ищет по диапазону дат: берём шире, чтобы поймать «долгожителей»
+
+google_drive:
+  # ID папки внутри Shared Drive, куда складываются еженедельные отчёты.
+  # Пример ссылки: https://drive.google.com/drive/folders/<ВОТ_ЭТОТ_ID>
+  root_folder_id: "PUT_SHARED_DRIVE_FOLDER_ID_HERE"
+
+selection:
+  download_top_overall: 30     # сколько лучших креативов за неделю скачивать
+  download_top_per_competitor: 3  # плюс минимум столько от каждого конкурента (если есть)
+  max_video_mb: 150
+  frames_per_video: 6          # ключевые кадры для анализа Claude и как референсы
+  transcribe_audio: true       # faster-whisper (если установлен); иначе пропускается
+
+# Вес метрик в итоговом score (0..1). Если у креатива нет охвата — веса перенормируются.
+scoring:
+  reach: 0.45        # EU reach (Meta DSA) / unique users seen (TikTok)
+  longevity: 0.35    # сколько дней креатив крутится: главный прокси «работает»
+  variations: 0.20   # сколько копий/вариаций одного креатива запущено (collation count)
+
+competitors:
+  - name: Boss Revolution
+    facebook: { query: "Boss Revolution", page_ids: [] }   # page_ids точнее запроса: впишите, когда найдёте
+    tiktok:   { query: "Boss Revolution" }
+    match: ["boss ?revolution", "idt"]                    # regex по имени рекламодателя: отсекает шум
+  - name: Rebtel
+    facebook: { query: "Rebtel", page_ids: [] }
+    tiktok:   { query: "Rebtel" }
+    match: ["rebtel"]
+  - name: Libon
+    facebook: { query: "Libon", page_ids: [] }
+    tiktok:   { query: "Libon" }
+    match: ["libon"]
+  - name: CallTuv
+    facebook: { query: "CallTuv", page_ids: [] }
+    tiktok:   { query: "CallTuv" }
+    match: ["call ?tuv"]
+  - name: Africallshop
+    facebook: { query: "Africallshop", page_ids: [] }
+    tiktok:   { query: "Africallshop" }
+    match: ["africallshop"]
+  - name: Talk360
+    facebook: { query: "Talk360", page_ids: [] }
+    tiktok:   { query: "Talk360" }
+    match: ["talk ?360"]
+
+# Акторы Apify. Поля ввода у разных акторов отличаются: шаблон подставляет
+# {url}, {query}, {max_items}, {start_date}, {end_date}. Нормализация вывода в radar/normalize.py
+# понимает camelCase/snake_case и разные имена полей, сырые данные сохраняются в raw/*.json.
+apify:
+  facebook:
+    actor: "apify/facebook-ads-scraper"
+    max_items: 200
+    # Ad Library URL: все объявления (активные и нет), все страны, все форматы.
+    url_by_query: "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&media_type=all&q={query}&search_type=keyword_exact_phrase"
+    url_by_page:  "https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&media_type=all&view_all_page_id={page_id}"
+    input:
+      startUrls: [{ url: "{url}" }]
+      resultsLimit: "{max_items}"
+      isDetailsPerAd: true          # детали объявления, включая EU reach (если есть)
+      onlyTotal: false
+  tiktok:
+    # TikTok Ad Library показывает только объявления с показами в EU/EEA/UK (требование DSA).
+    actor: "datascoutlab/tiktok-ads-library-scraper"
+    max_items: 100
+    input:
+      query: "{query}"
+      region: "all"
+      startDate: "{start_date}"
+      endDate: "{end_date}"
+      maxItems: "{max_items}"

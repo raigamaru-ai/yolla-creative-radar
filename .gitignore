@@ -1,0 +1,7 @@
+work/
+__pycache__/
+.venv/
+*.json.key
+service-account*.json
+
+.venv/

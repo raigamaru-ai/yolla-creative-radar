@@ -1,0 +1,7 @@
+[{"adArchiveID":"1001","pageName":"Rebtel","startDateFormatted":"2026-10-01T07:00:00.000Z","endDateFormatted":"2026-11-25T07:00:00.000Z","isActive":true,"collationCount":7,"publisherPlatform":["facebook","instagram"],
+  "snapshot":{"body":{"text":"Call Mom in Nigeria for less"},"title":"Rebtel","ctaText":"Install now","linkUrl":"https://example.com","videos":[{"videoHdUrl":"http://127.0.0.1:8765/test.mp4","videoPreviewImageUrl":"http://127.0.0.1:8765/x.jpg"}]},
+  "aaaInfo":{"euTotalReach":125000}},
+ {"adArchiveID":"1002","pageName":"Rebtel","startDate":1795000000,"isActive":true,"collationCount":1,
+  "snapshot":{"body":{"text":"New test"},"videos":[{"videoSdUrl":"http://127.0.0.1:8765/test.mp4"}]}},
+ {"adArchiveID":"1003","pageName":"Someone Else","startDateFormatted":"2026-11-20","isActive":true,"snapshot":{}},
+ {"adArchiveID":"1004","pageName":"Rebtel","startDateFormatted":"2026-08-01","endDateFormatted":"2026-09-01","isActive":false,"snapshot":{"images":[{"originalImageUrl":"http://127.0.0.1:8765/x.jpg"}]}}]
