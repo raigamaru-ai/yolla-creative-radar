@@ -7,7 +7,7 @@ lookback_days_tiktok: 90  # TikTok Library ищет по диапазону да
 google_drive:
   # ID папки внутри Shared Drive, куда складываются еженедельные отчёты.
   # Пример ссылки: https://drive.google.com/drive/folders/<ВОТ_ЭТОТ_ID>
-  root_folder_id: "PUT_SHARED_DRIVE_FOLDER_ID_HERE"
+  root_folder_id: "1N0zhUMRNAgF7srQf8DzDwgETNnbgM7cf"
 
 selection:
   download_top_overall: 30     # сколько лучших креативов за неделю скачивать
