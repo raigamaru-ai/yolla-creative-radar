@@ -78,22 +78,28 @@ def extract_frames(ff: str, video: Path, out_dir: Path, n: int) -> tuple[list[Pa
 
 
 _whisper = None
+_whisper_failed = False
 
 
 def transcribe(video: Path) -> tuple[str, str]:
-    global _whisper
-    try:
-        from faster_whisper import WhisperModel
-    except ImportError:
+    """Расшифровка озвучки. Любой сбой (нет пакета, модель не скачалась) не роняет сбор."""
+    global _whisper, _whisper_failed
+    if _whisper_failed:
         return "", ""
-    if _whisper is None:
-        _whisper = WhisperModel("base", device="cpu", compute_type="int8")
     try:
+        if _whisper is None:
+            from faster_whisper import WhisperModel
+            _whisper = WhisperModel("base", device="cpu", compute_type="int8")
         segments, info = _whisper.transcribe(str(video), vad_filter=True)
         text = " ".join(f"[{s.start:.0f}s] {s.text.strip()}" for s in segments)
         return text, info.language
     except Exception as e:
-        print(f"  ! транскрипт {video.name}: {e}")
+        if _whisper is None:
+            _whisper_failed = True
+            print(f"! расшифровка озвучки отключена: {type(e).__name__}: {str(e)[:200]}"
+                  " (нужен сетевой доступ к huggingface.co)")
+        else:
+            print(f"  ! транскрипт {video.name}: {e}")
         return "", ""
 
 

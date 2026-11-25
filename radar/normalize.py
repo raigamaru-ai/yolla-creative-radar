@@ -114,7 +114,8 @@ def _text(v) -> str:
         v = get(v, "text", "markup.html", "body")
     if isinstance(v, list):
         v = " ".join(_text(x) for x in v)
-    return re.sub(r"\s+", " ", str(v or "")).strip()
+    s = re.sub(r"\s+", " ", str(v or "")).strip()
+    return "" if re.fullmatch(r"(\{\{[^}]*\}\}\s*)+", s) else s  # шаблоны каталожных объявлений
 
 
 def _list(v, limit: int = 15) -> str:
