@@ -23,7 +23,7 @@ scoring:
 
 # Модуль 5: генерация креативов в Kling (официальный API, ключ — переменная окружения KLING_API_KEY).
 kling:
-  enabled: true
+  enabled: false            # выключено до покупки пакета Kling API; включить: true + KLING_API_KEY
   base_url: "https://api-singapore.klingai.com"
   aspect_ratios: ["9:16", "1:1", "16:9"]   # разрешённые форматы
   usd_per_unit: 0.14                        # для оценки стоимости в логе

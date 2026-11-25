@@ -146,7 +146,7 @@ python -m radar prep
 
 ## 4б. Генерация в Kling (пишешь задания ты, генерирует скрипт)
 
-Если `doctor` показал ⚠ по Kling, пропусти этот шаг и укажи это в итоге. Иначе напиши `work/<дата>/kling_jobs.json`:
+Если в `config.yaml` стоит `kling.enabled: false` или `doctor` показал ⚠ по Kling, пропусти этот шаг (не пиши `kling_jobs.json`) и укажи это в итоге. Иначе напиши `work/<дата>/kling_jobs.json`:
 
 ```json
 {"jobs": [
