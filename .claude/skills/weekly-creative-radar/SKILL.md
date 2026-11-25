@@ -12,11 +12,13 @@ description: Еженедельный анализ креативов конку
 ## 0. Подготовка
 
 ```bash
-pip install -q -r requirements.txt
+python -m pip install -q -r requirements.txt
+# в облачном окружении системный cryptography собран под другой Python — ставим свой
+python -m pip install -q --ignore-installed cffi cryptography
 python -m radar doctor
 ```
 
-Если `doctor` показывает ✗ по APIFY_TOKEN, GOOGLE_SERVICE_ACCOUNT_JSON или доступу к папке Drive, остановись. Итоговым сообщением напиши, что именно не настроено (см. README.md, раздел «Настройка»).
+Если `doctor` показывает хоть один ✗ (Apify-токен или доступ к API, Google-авторизация, папка отчётов), остановись. Итоговым сообщением напиши, что именно не настроено и как это исправить (см. README.md, раздел «Настройка»). Не обходи сетевые ограничения окружения.
 
 ## 1–2. Сбор и скачивание (скрипт)
 
