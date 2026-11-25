@@ -10,6 +10,7 @@
 | 2. Скачивание | тот же `prep`: видео, ключевые кадры, транскрипт | `01 Креативы конкурентов/`, `02 Кадры-референсы/` |
 | 3. Анализ: что сработало | Claude по [SKILL.md](.claude/skills/weekly-creative-radar/SKILL.md) | раздел документа |
 | 4. Сценарии, промпты, референсы | Claude + `python -m radar publish` | `Yolla — сценарии и промпты — <дата>` (Google Doc) |
+| 5. Генерация в Kling | Claude пишет `kling_jobs.json`, `python -m radar generate` | `03 Сгенерировано в Kling/`: видео до 15 с в 720p и статика (9:16, 1:1, 16:9) |
 
 Запуск: облачная задача Claude Code (routine) каждую пятницу в 10:00 по Москве (`0 7 * * 5` UTC). Она клонирует этот репозиторий и выполняет skill `weekly-creative-radar`.
 
@@ -30,9 +31,10 @@
    - (Альтернатива для Google Workspace: сервисный аккаунт + Shared Drive, переменная `GOOGLE_SERVICE_ACCOUNT_JSON`.)
 3. **GitHub:** приватный репозиторий с этим кодом (облачный запуск клонирует его).
 4. **Облачное окружение Claude** (claude.ai/code → Environments):
-   - переменные `APIFY_TOKEN` и `GOOGLE_OAUTH_TOKEN_JSON` (всё содержимое `google-oauth-token.json`);
-   - сетевой доступ: Full или allowlist `api.apify.com`, `*.googleapis.com`, `*.fbcdn.net`, `*.tiktokcdn.com`, `*.tiktokcdn-eu.com`, `huggingface.co` (модель транскрипции), `pypi.org`, `files.pythonhosted.org`.
-5. **Бриф:** заполните [prompts/yolla_brief.md](prompts/yolla_brief.md): офферы, цвета, приоритетные гео.
+   - переменные `APIFY_TOKEN`, `GOOGLE_OAUTH_TOKEN_JSON` (всё содержимое `google-oauth-token.json`) и `KLING_API_KEY` (kling.ai/dev/api-key; нужен пакет ресурсов для видео и картинок);
+   - сетевой доступ: Full или allowlist `api.apify.com`, `*.googleapis.com`, `*.fbcdn.net`, `*.tiktokcdn.com`, `*.tiktokcdn-eu.com`, `huggingface.co` (модель транскрипции), `api-singapore.klingai.com` и CDN результатов Kling (`*.klingai.com`, `*.kling.ai`), `pypi.org`, `files.pythonhosted.org`.
+5. **Kling:** лимиты (число роликов, длительность, потолок units за прогон) — в `config.yaml → kling`. Выключить генерацию: `kling.enabled: false`.
+6. **Бриф:** заполните [prompts/yolla_brief.md](prompts/yolla_brief.md): офферы, цвета, приоритетные гео.
 
 Проверка: `python -m radar doctor`.
 

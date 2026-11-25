@@ -21,6 +21,29 @@ scoring:
   longevity: 0.35    # сколько дней креатив крутится: главный прокси «работает»
   variations: 0.20   # сколько копий/вариаций одного креатива запущено (collation count)
 
+# Модуль 5: генерация креативов в Kling (официальный API, ключ — переменная окружения KLING_API_KEY).
+kling:
+  enabled: true
+  base_url: "https://api-singapore.klingai.com"
+  aspect_ratios: ["9:16", "1:1", "16:9"]   # разрешённые форматы
+  usd_per_unit: 0.14                        # для оценки стоимости в логе
+  poll_seconds: 20
+  timeout_minutes: 40
+  video:
+    endpoint: "/text-to-video/kling-3.0"
+    resolution: "720p"
+    min_duration: 3
+    max_duration: 15          # секунд, не больше
+    audio: "off"              # "native" — звук от Kling, дороже в 1.5 раза
+    units_per_second: 0.6     # прайс Kling 3.0, 720p без звука (≈ $0.084/с)
+    units_per_second_audio: 0.9
+    max_per_run: 6            # не больше 6 видео за прогон
+    max_units_per_run: 60     # потолок ≈ $8.4 за прогон на видео
+  image:
+    endpoint: "/image-generation/kling-4.0"
+    resolution: "2k"          # минимум у Image 4.0; скрипт делает копию 720p
+    max_per_run: 6
+
 competitors:
   - name: Boss Revolution
     facebook: { query: "Boss Revolution", page_ids: [] }   # page_ids точнее запроса: впишите, когда найдёте

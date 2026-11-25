@@ -43,6 +43,10 @@ def build_html(week: Week) -> str:
         if not f.exists():
             raise SystemExit(f"Нет {f}: сначала выполните модули 3–4 (см. SKILL.md)")
         parts.append(f.read_text(encoding="utf-8"))
+    from .kling import report_markdown
+    gen = report_markdown(week)
+    if gen:
+        parts.insert(1, gen)
     md = "\n\n---\n\n".join(parts)
     html = markdown.markdown(md, extensions=["tables", "fenced_code", "sane_lists"])
     links: dict[str, str] = {}

@@ -1,6 +1,7 @@
 """CLI.
 
 python -m radar prep     [--date 2026-11-27] [--no-drive] [--fixtures tests/fixtures]   # модули 1–2
+python -m radar generate [--date ...] [--no-drive] [--dry-run]                         # модуль 5: видео и статика в Kling
 python -m radar publish  [--date ...] [--no-drive]                                     # выгрузка документа
 python -m radar doctor                                                                 # проверка ключей и доступа
 python -m radar auth     [--client-secret client_secret.json] [--share-with-link]       # один раз: вход в личный Google Drive
@@ -11,7 +12,7 @@ import argparse
 import os
 from pathlib import Path
 
-from . import collect, download, publish
+from . import collect, download, kling, publish
 from .config import load_config, make_week
 
 
@@ -37,6 +38,22 @@ def doctor(cfg: dict, week) -> bool:
         except Exception as e:
             mark(False, f"Apify API недоступен: {e}")
     mark(download.ffmpeg_bin() is not None, "ffmpeg")
+
+    if cfg.get("kling", {}).get("enabled"):
+        # Kling не блокирует отчёт: при проблеме генерация просто пропускается (⚠ вместо ✗)
+        def soft(good: bool, text: str):
+            print(("✓ " if good else "⚠ ") + text + ("" if good else " — генерация в Kling будет пропущена"))
+        key = os.environ.get("KLING_API_KEY")
+        soft(bool(key), "KLING_API_KEY задан")
+        if key:
+            try:
+                r = requests.get(cfg["kling"]["base_url"].rstrip("/") + "/tasks", params={"task_ids": "0"},
+                                 headers={"Authorization": f"Bearer {key}"}, timeout=20)
+                good = r.status_code not in (401, 403) and r.status_code < 500
+                soft(good, f"Kling API отвечает (HTTP {r.status_code})"
+                     + ("" if good else ": проверьте ключ и сетевой доступ к api-singapore.klingai.com"))
+            except Exception as e:
+                soft(False, f"Kling API недоступен: {e}")
 
     mode = auth_mode()
     mark(mode is not None, f"Google-авторизация: {mode or 'нет GOOGLE_OAUTH_TOKEN_JSON / GOOGLE_SERVICE_ACCOUNT_JSON'}")
@@ -81,10 +98,11 @@ def auth(client_secret: str, share_with_link: bool):
 
 def main():
     ap = argparse.ArgumentParser(prog="radar")
-    ap.add_argument("command", choices=["prep", "publish", "doctor", "auth"])
+    ap.add_argument("command", choices=["prep", "generate", "publish", "doctor", "auth"])
     ap.add_argument("--date", help="день запуска YYYY-MM-DD (по умолчанию сегодня); окно = 7 дней до него")
     ap.add_argument("--no-drive", action="store_true", help="ничего не загружать в Google Drive")
     ap.add_argument("--fixtures", type=Path, help="читать выдачу Apify из папки вместо запуска акторов")
+    ap.add_argument("--dry-run", action="store_true", help="для generate: только проверить задания и оценить стоимость")
     ap.add_argument("--client-secret", default="client_secret.json", help="для auth: OAuth-клиент (Desktop app)")
     ap.add_argument("--share-with-link", action="store_true",
                     help="для auth: открыть папку отчётов всем, у кого есть ссылка (просмотр)")
@@ -94,7 +112,7 @@ def main():
     week = make_week(cfg, a.date)
     week.workdir.mkdir(parents=True, exist_ok=True)
     drive = None
-    if not a.no_drive and a.command in ("prep", "publish"):
+    if not a.no_drive and a.command in ("prep", "publish", "generate") and not a.dry_run:
         from .drive import Drive
         drive = Drive()
 
@@ -113,6 +131,10 @@ def main():
         rows = download.run(rows, cfg, week, drive)
         collect.write_table(rows, week)  # с ссылками на Drive
         print(f"Рабочая папка: {week.workdir}")
+    elif a.command == "generate":
+        if not cfg.get("kling", {}).get("enabled"):
+            raise SystemExit("Генерация выключена: config.yaml → kling.enabled")
+        kling.run(cfg, week, drive, dry_run=a.dry_run)
     else:
         publish.run(cfg, week, drive)
 
