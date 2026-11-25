@@ -139,6 +139,7 @@ def normalize_facebook(item: dict, competitor: str, today: dt.date) -> dict:
     imp = get(item, "impressionsWithIndex", "impressions") or {}
     return {
         "creative_id": f"fb_{ad_id}",
+        "page_id": str(get(item, "pageID", "pageId", "snapshot.pageId") or ""),
         "platform": "facebook",
         "competitor": competitor,
         "advertiser": _text(get(item, "pageName", "snapshot.pageName", "advertiserName")),
@@ -162,33 +163,45 @@ def normalize_facebook(item: dict, competitor: str, today: dt.date) -> dict:
     }
 
 
+def _band(v) -> float | None:
+    """'1M-10M' -> среднее границ."""
+    if not v:
+        return None
+    parts = [to_num(x) for x in re.split(r"\s*[-–]\s*", str(v)) if x]
+    parts = [x for x in parts if x is not None]
+    return sum(parts) / len(parts) if parts else None
+
+
 def normalize_tiktok(item: dict, competitor: str, today: dt.date) -> dict:
     ad_id = str(get(item, "adId", "ad_id", "id") or "")
-    first = parse_date(get(item, "firstShownDate", "firstShown", "startDate", "adStartDate"))
-    last = parse_date(get(item, "lastShownDate", "lastShown", "endDate", "adEndDate"))
-    video = get(item, "videoUrl", "video.url", "videos.0.url", "creative.videoUrl") or find_url(item, [r"video", r"\.mp4"])
-    image = get(item, "imageUrl", "images.0", "coverUrl", "video.cover")
+    first = parse_date(get(item, "firstShownDate", "firstShown", "startDate"))
+    last = parse_date(get(item, "lastShownDate", "lastShown", "endDate"))
+    video = get(item, "videoUrls.0", "videoUrl", "video.url") or find_url(item, [r"\.mp4", r"video"])
+    image = get(item, "imageUrls.0", "imageUrl", "coverUrl")
+    lo, hi = to_num(get(item, "estimatedAudienceMin")), to_num(get(item, "estimatedAudienceMax"))
+    reach = (lo + hi) / 2 if lo is not None and hi is not None else _band(get(item, "estimatedAudience"))
     return {
         "creative_id": f"tt_{ad_id}",
         "platform": "tiktok",
         "competitor": competitor,
-        "advertiser": _text(get(item, "advertiserName", "advertiser.name", "businessName", "advertiser")),
+        "advertiser": _text(get(item, "advertiserName", "paidForBy", "accountUsername")),
         "first_seen": first,
         "last_seen": last,
-        "is_active": last is None or last >= today - dt.timedelta(days=1),
-        "reach": to_num(get(item, "uniqueUsersSeen", "uniqueUsers", "reach", "totalReach",
-                            "audience", "impression")),
+        "is_active": last is None or last >= today - dt.timedelta(days=2),
+        "reach": reach,
         "impressions_lower": None,
         "impressions_upper": None,
-        "variations": to_num(get(item, "variations", "adsCount")) or 1,
+        "variations": 1,
         "placements": "tiktok",
-        "countries": _list(get(item, "regions", "countries", "targetCountries")),
+        "countries": _list(list((get(item, "impressionsByCountry") or {}).keys())
+                           if isinstance(get(item, "impressionsByCountry"), dict)
+                           else get(item, "regions", "countries")),
         "format": "video" if video else ("image" if image else ""),
-        "headline": _text(get(item, "title", "adTitle")),
-        "ad_text": _text(get(item, "adText", "caption", "text", "description"))[:1500],
-        "cta": _text(get(item, "cta", "callToAction")),
-        "landing_url": get(item, "landingPageUrl", "landingUrl") or "",
+        "headline": "",
+        "ad_text": _text(get(item, "adText", "caption"))[:1500],
+        "cta": _text(get(item, "callToAction", "cta")),
+        "landing_url": get(item, "externalUrl", "landingPageUrl") or "",
         "media_url": video or image or "",
-        "thumbnail_url": get(item, "coverUrl", "video.cover", "thumbnailUrl") or image or "",
-        "library_url": f"https://library.tiktok.com/ads/detail/?ad_id={ad_id}" if ad_id else "",
+        "thumbnail_url": image or "",
+        "library_url": get(item, "adUrl") or (f"https://library.tiktok.com/ads/detail/?ad_id={ad_id}" if ad_id else ""),
     }

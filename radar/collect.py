@@ -29,14 +29,17 @@ def _fill(template, values: dict):
     return template
 
 
-def _run_actor(actor: str, run_input: dict) -> list[dict]:
+def _run_actor(actor: str, run_input: dict, max_items: int) -> list[dict]:
     from apify_client import ApifyClient
 
     token = os.environ.get("APIFY_TOKEN")
     if not token:
         raise SystemExit("APIFY_TOKEN не задан")
     client = ApifyClient(token)
-    run = client.actor(actor).call(run_input=run_input, timeout_secs=1800)
+    try:  # max_items — потолок оплачиваемых результатов на стороне Apify
+        run = client.actor(actor).call(run_input=run_input, max_items=max_items, timeout_secs=1800)
+    except TypeError:
+        run = client.actor(actor).call(run_input=run_input, timeout_secs=1800)
     if not run or run.get("status") != "SUCCEEDED":
         print(f"  ! {actor}: статус {run and run.get('status')}")
     return list(client.dataset(run["defaultDatasetId"]).iterate_items()) if run else []
@@ -46,8 +49,8 @@ def fetch(cfg: dict, week: Week, fixtures: Path | None = None) -> list[dict]:
     raw_dir = week.workdir / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
     today = week.run_date
-    tt_start = week.end - dt.timedelta(days=int(cfg.get("lookback_days_tiktok", 90)))
     rows: list[dict] = []
+    discovered: dict[str, dict] = {}
 
     for comp in cfg["competitors"]:
         name = comp["name"]
@@ -74,11 +77,12 @@ def fetch(cfg: dict, week: Week, fixtures: Path | None = None) -> list[dict]:
                 for url in targets:
                     values = {
                         "url": url, "query": pcfg.get("query", name), "max_items": int(acfg["max_items"]),
-                        "start_date": tt_start.isoformat(), "end_date": week.end.isoformat(),
+                        "start_date": week.start.isoformat(), "end_date": week.end.isoformat(),
                     }
                     print(f"→ {platform} / {name}: {url or values['query']}")
                     try:
-                        items += _run_actor(acfg["actor"], _fill(copy.deepcopy(acfg["input"]), values))
+                        cap = int(acfg["max_items"]) * (len(acfg["input"].get("regions", [])) or 1)
+                        items += _run_actor(acfg["actor"], _fill(copy.deepcopy(acfg["input"]), values), cap)
                     except Exception as e:  # один упавший конкурент не должен ронять весь отчёт
                         print(f"  ! ошибка {platform}/{name}: {e}")
             raw_file.write_text(json.dumps(items, ensure_ascii=False, default=str, indent=1))
@@ -96,7 +100,14 @@ def fetch(cfg: dict, week: Week, fixtures: Path | None = None) -> list[dict]:
                     continue  # чужой рекламодатель, попавший в поиск по ключевому слову
                 rows.append(r)
                 kept += 1
+                if r.get("page_id"):
+                    discovered.setdefault(name, {})[r["page_id"]] = r["advertiser"]
             print(f"  {platform}/{name}: получено {len(items)}, оставлено {kept}")
+    if discovered:
+        (week.workdir / "discovered_page_ids.json").write_text(json.dumps(discovered, ensure_ascii=False, indent=1))
+        print("ID страниц конкурентов в Facebook (впишите в config.yaml → page_ids):")
+        for comp, pages in discovered.items():
+            print(f"  {comp}: " + ", ".join(f"{pid} ({pn})" for pid, pn in pages.items()))
     return rows
 
 
