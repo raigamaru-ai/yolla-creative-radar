@@ -3,6 +3,8 @@
 python -m radar prep     [--date 2026-11-27] [--no-drive] [--fixtures tests/fixtures]   # модули 1–2
 python -m radar generate [--date ...] [--no-drive] [--dry-run]                         # модуль 5: видео и статика в Kling
 python -m radar publish  [--date ...] [--no-drive]                                     # выгрузка документа
+python -m radar notify   [--date ...] [--text "..."]                                   # отчёт в Telegram (work/<дата>/telegram.md)
+python -m radar telegram-chats                                                         # узнать ID чатов для TELEGRAM_CHAT_IDS
 python -m radar doctor                                                                 # проверка ключей и доступа
 python -m radar auth     [--client-secret client_secret.json] [--share-with-link]       # один раз: вход в личный Google Drive
 """
@@ -12,7 +14,7 @@ import argparse
 import os
 from pathlib import Path
 
-from . import collect, download, kling, publish
+from . import collect, download, kling, notify, publish
 from .config import load_config, make_week
 
 
@@ -54,6 +56,17 @@ def doctor(cfg: dict, week) -> bool:
                      + ("" if good else ": проверьте ключ и сетевой доступ к api-singapore.klingai.com"))
             except Exception as e:
                 soft(False, f"Kling API недоступен: {e}")
+
+    tg_token, tg_chats = notify._creds()
+    if tg_token:
+        try:
+            bot = notify._call(tg_token, "getMe")
+            print(f"✓ Telegram-бот @{bot['username']}, чатов для отчёта: {len(tg_chats)}"
+                  + ("" if tg_chats else " — ⚠ задайте TELEGRAM_CHAT_IDS"))
+        except Exception as e:
+            print(f"⚠ Telegram недоступен: {e} — отчёт в Telegram не уйдёт (сетевой доступ к api.telegram.org?)")
+    else:
+        print("⚠ TELEGRAM_BOT_TOKEN не задан — отчёт в Telegram не уйдёт")
 
     mode = auth_mode()
     mark(mode is not None, f"Google-авторизация: {mode or 'нет GOOGLE_OAUTH_TOKEN_JSON / GOOGLE_SERVICE_ACCOUNT_JSON'}")
@@ -98,10 +111,11 @@ def auth(client_secret: str, share_with_link: bool):
 
 def main():
     ap = argparse.ArgumentParser(prog="radar")
-    ap.add_argument("command", choices=["prep", "generate", "publish", "doctor", "auth"])
+    ap.add_argument("command", choices=["prep", "generate", "publish", "notify", "telegram-chats", "doctor", "auth"])
     ap.add_argument("--date", help="день запуска YYYY-MM-DD (по умолчанию сегодня); окно = 7 дней до него")
     ap.add_argument("--no-drive", action="store_true", help="ничего не загружать в Google Drive")
     ap.add_argument("--fixtures", type=Path, help="читать выдачу Apify из папки вместо запуска акторов")
+    ap.add_argument("--text", help="для notify: отправить этот текст вместо work/<дата>/telegram.md")
     ap.add_argument("--dry-run", action="store_true", help="для generate: только проверить задания и оценить стоимость")
     ap.add_argument("--client-secret", default="client_secret.json", help="для auth: OAuth-клиент (Desktop app)")
     ap.add_argument("--share-with-link", action="store_true",
@@ -118,6 +132,12 @@ def main():
 
     if a.command == "doctor":
         raise SystemExit(0 if doctor(cfg, week) else 1)
+    if a.command == "telegram-chats":
+        notify.list_chats()
+        return
+    if a.command == "notify":
+        notify.run(week, a.text)
+        return
     if a.command == "auth":
         auth(a.client_secret, a.share_with_link)
         return
