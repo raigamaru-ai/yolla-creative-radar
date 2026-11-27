@@ -34,11 +34,11 @@ kling:
     resolution: "720p"
     min_duration: 3
     max_duration: 15          # секунд, не больше
-    audio: "off"              # "native" — звук от Kling, дороже в 1.5 раза
+    audio: "native"           # речь, войсовер и музыку генерирует Kling ("off" — без звука, в 1.5 раза дешевле)
     units_per_second: 0.6     # прайс Kling 3.0, 720p без звука (≈ $0.084/с)
     units_per_second_audio: 0.9
     max_per_run: 6            # не больше 6 видео за прогон
-    max_units_per_run: 60     # потолок ≈ $8.4 за прогон на видео
+    max_units_per_run: 85     # потолок ≈ $12 за прогон: 6 роликов × 15 с со звуком
   image:
     endpoint: "/image-generation/kling-4.0"
     resolution: "2k"          # минимум у Image 4.0; скрипт делает копию 720p
