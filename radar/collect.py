@@ -29,15 +29,19 @@ def _fill(template, values: dict):
     return template
 
 
-def _run_actor(actor: str, run_input: dict, max_items: int) -> list[dict]:
+def _run_actor(actor: str, run_input: dict, max_items: int, max_charge_usd: float | None = None) -> list[dict]:
     from apify_client import ApifyClient
 
     token = os.environ.get("APIFY_TOKEN")
     if not token:
         raise SystemExit("APIFY_TOKEN не задан")
     client = ApifyClient(token)
+    kw = {}
+    if max_charge_usd:  # для pay-per-event акторов: без него Apify считает потолок от max_items и обрывает запуск
+        from decimal import Decimal
+        kw["max_total_charge_usd"] = Decimal(str(max_charge_usd))
     try:  # max_items — потолок оплачиваемых результатов на стороне Apify
-        run = client.actor(actor).call(run_input=run_input, max_items=max_items, timeout_secs=1800)
+        run = client.actor(actor).call(run_input=run_input, max_items=max_items, timeout_secs=1800, **kw)
     except TypeError:
         run = client.actor(actor).call(run_input=run_input, timeout_secs=1800)
     if not run or run.get("status") != "SUCCEEDED":
@@ -89,7 +93,7 @@ def fetch(cfg: dict, week: Week, fixtures: Path | None = None) -> list[dict]:
                             run_input.pop("advertiserName", None)
                             run_input["advertisers"] = [{"id": str(a["id"]), "name": a["name"]} for a in advertisers]
                         cap = int(acfg["max_items"]) * (len(advertisers) if platform == "tiktok" and advertisers else 1)
-                        items += _run_actor(acfg["actor"], run_input, cap)
+                        items += _run_actor(acfg["actor"], run_input, cap, acfg.get("max_charge_usd"))
                     except Exception as e:  # один упавший конкурент не должен ронять весь отчёт
                         print(f"  ! ошибка {platform}/{name}: {e}")
             raw_file.write_text(json.dumps(items, ensure_ascii=False, default=str, indent=1))
@@ -187,6 +191,7 @@ def probe(cfg: dict, only: str | None = None, days: int = 90, max_items: int = 4
 
     end = dt.date.today()
     start = end - dt.timedelta(days=days)
+    summary = []
     fb = cfg["apify"]["facebook"]
     tt = cfg["apify"]["tiktok"]
     for comp in cfg["competitors"]:
@@ -217,6 +222,9 @@ def probe(cfg: dict, only: str | None = None, days: int = 90, max_items: int = 4
             pages[key] += 1
             sample.setdefault(key, (r["ad_text"] or r["headline"])[:90])
         print(f"  Facebook: {len(items)} объявлений, страниц: {len(pages)}")
+        summary.append(f"{comp['name']} · Facebook: " + (", ".join(
+            f"{pid} ({name}, {n})" for (pid, name), n in pages.most_common()
+            if pid and pats and any(p.search(name or "") for p in pats)) or "—"))
         for (pid, name), n in pages.most_common(15):
             ok = "✓" if pats and any(p.search(name or "") for p in pats) else " "
             print(f"   {ok} page_id {pid or '—'} · {name or '—'} · {n} объявл. · {sample[(pid, name)]}")
@@ -225,7 +233,7 @@ def probe(cfg: dict, only: str | None = None, days: int = 90, max_items: int = 4
         run_input = _fill(copy.deepcopy(tt["input"]), {"query": tq, "start_date": start.isoformat(),
                                                        "end_date": end.isoformat()})
         try:
-            items = _run_actor(tt["actor"], run_input, max_items)
+            items = _run_actor(tt["actor"], run_input, max_items, tt.get("max_charge_usd"))
         except Exception as e:
             items = []
             print(f"  ! tiktok: {e}")
@@ -237,6 +245,12 @@ def probe(cfg: dict, only: str | None = None, days: int = 90, max_items: int = 4
                 continue
             accs[(r.get("advertiser_id") or "", r["advertiser"])] += 1
         print(f"  TikTok (EU): {len(items)} объявлений, рекламодателей: {len(accs)}")
+        summary.append(f"{comp['name']} · TikTok: " + (", ".join(
+            f"{{id: \"{aid}\", name: \"{name}\"}} ({n})" for (aid, name), n in accs.most_common()
+            if pats and any(p.search(name or "") for p in pats)) or "—") + f" · всего объявлений {len(items)}")
         for (aid, name), n in accs.most_common(15):
             ok = "✓" if pats and any(p.search(name or "") for p in pats) else " "
             print(f"   {ok} advertiser {{id: \"{aid}\", name: \"{name}\"}} · {n} объявл.")
+    print("\n=== ИТОГ (✓ = имя совпало с match; проверьте глазами)")
+    for line in summary:
+        print(line)

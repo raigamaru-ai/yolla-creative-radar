@@ -94,6 +94,7 @@ apify:
     # Если у конкурента заданы tiktok.advertisers ([{id, name}] из вывода `python -m radar probe`), ищем строго по ним.
     actor: "lexis-solutions/tiktok-ads-scraper"
     max_items: 24            # на конкурента за прогон
+    max_charge_usd: 0.5      # потолок оплаты одного запуска (актор платный по событиям: объявления + решение капчи)
     input:
       advertiserName: "{query}"
       country: "all"
