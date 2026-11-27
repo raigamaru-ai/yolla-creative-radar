@@ -45,29 +45,34 @@ kling:
     max_per_run: 6
 
 competitors:
+  # page_ids и tiktok.advertisers найдены командой `python -m radar probe` 27.11.2026 и проверены по текстам объявлений.
+  # С ними поиск идёт строго по страницам конкурента (без чужих «Boss», «LIBON»-плитки и т.п.).
+  # tiktok: {} — в TikTok Ad Library (EU) у конкурента нет аккаунта, TikTok не опрашиваем (каждый поиск ≈ 10 мин).
   - name: Boss Revolution
-    facebook: { query: "Boss Revolution", page_ids: [] }   # page_ids точнее запроса: впишите, когда найдёте
-    tiktok:   { query: "Boss Revolution" }
+    facebook: { query: "Boss Revolution", page_ids: ["293019114195862"] }
+    tiktok:   {}
     match: ["boss ?revolution", "idt"]                    # regex по имени рекламодателя: отсекает шум
   - name: Rebtel
-    facebook: { query: "Rebtel", page_ids: [] }
-    tiktok:   { query: "Rebtel" }
+    facebook: { query: "Rebtel", page_ids: ["14657950530"] }
+    tiktok:   { query: "Rebtel", advertisers: [{ id: "7024075024436822785", name: "Rebtel Networks AB" }] }
     match: ["rebtel"]
   - name: Libon
-    facebook: { query: "Libon", page_ids: [] }
-    tiktok:   { query: "Libon" }
+    facebook: { query: "Libon", page_ids: ["483412228408184", "104295426271151", "109346051591075", "619076241451044"] }
+    tiktok:   { query: "Libon", advertisers: [{ id: "7236399462971883522", name: "LIBON" }] }
     match: ["libon"]
   - name: CallTuv
-    facebook: { query: "CallTuv", page_ids: [] }
-    tiktok:   { query: "CallTuv" }
+    facebook: { query: "CallTuv", page_ids: ["861155367091001"] }
+    tiktok:   {}
     match: ["call ?tuv"]
+  # Africallshop и Talk360: на 27.11.2026 в Meta Ad Library за 90 дней нет ни одного их объявления
+  # (у Talk360 только чужие «…360»), в TikTok (EU) аккаунтов нет. Поиск по фразе оставлен: появятся — попадут в отчёт.
   - name: Africallshop
     facebook: { query: "Africallshop", page_ids: [] }
-    tiktok:   { query: "Africallshop" }
+    tiktok:   {}
     match: ["africallshop"]
   - name: Talk360
     facebook: { query: "Talk360", page_ids: [] }
-    tiktok:   { query: "Talk360" }
+    tiktok:   {}
     match: ["talk ?360"]
 
 # Акторы Apify. Стоимость ограничена: только объявления, АКТИВНЫЕ (имевшие показы) в 7-дневном окне,
