@@ -1,6 +1,7 @@
 """CLI.
 
 python -m radar prep     [--date 2026-11-27] [--no-drive] [--fixtures tests/fixtures]   # модули 1–2
+python -m radar restore  --date 2026-11-27                                             # пересборка недели из Drive без Apify
 python -m radar generate [--date ...] [--no-drive] [--dry-run]                         # модуль 5: видео и статика в Kling
 python -m radar publish  [--date ...] [--no-drive]                                     # выгрузка документа
 python -m radar notify   [--date ...] [--text "..."]                                   # отчёт в Telegram (work/<дата>/telegram.md)
@@ -14,7 +15,7 @@ import argparse
 import os
 from pathlib import Path
 
-from . import collect, download, kling, notify, publish
+from . import collect, download, kling, notify, publish, restore
 from .config import load_config, make_week
 
 
@@ -111,7 +112,7 @@ def auth(client_secret: str, share_with_link: bool):
 
 def main():
     ap = argparse.ArgumentParser(prog="radar")
-    ap.add_argument("command", choices=["prep", "generate", "publish", "notify", "telegram-chats", "doctor", "auth"])
+    ap.add_argument("command", choices=["prep", "restore", "generate", "publish", "notify", "telegram-chats", "doctor", "auth"])
     ap.add_argument("--date", help="день запуска YYYY-MM-DD (по умолчанию сегодня); окно = 7 дней до него")
     ap.add_argument("--no-drive", action="store_true", help="ничего не загружать в Google Drive")
     ap.add_argument("--fixtures", type=Path, help="читать выдачу Apify из папки вместо запуска акторов")
@@ -126,7 +127,7 @@ def main():
     week = make_week(cfg, a.date)
     week.workdir.mkdir(parents=True, exist_ok=True)
     drive = None
-    if not a.no_drive and a.command in ("prep", "publish", "generate") and not a.dry_run:
+    if not a.no_drive and a.command in ("prep", "restore", "publish", "generate") and not a.dry_run:
         from .drive import Drive
         drive = Drive()
 
@@ -151,6 +152,10 @@ def main():
         rows = download.run(rows, cfg, week, drive)
         collect.write_table(rows, week)  # с ссылками на Drive
         print(f"Рабочая папка: {week.workdir}")
+    elif a.command == "restore":
+        if not drive:
+            raise SystemExit("restore работает только с Google Drive (без --no-drive)")
+        restore.run(cfg, week, drive)
     elif a.command == "generate":
         if not cfg.get("kling", {}).get("enabled"):
             raise SystemExit("Генерация выключена: config.yaml → kling.enabled")

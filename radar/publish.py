@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import datetime as dt
 import json
 import re
 from pathlib import Path
@@ -69,7 +70,8 @@ def run(cfg: dict, week: Week, drive=None) -> dict:
     folder = mf.get("drive_week_folder_id") or drive.folder(week.label, cfg["google_drive"]["root_folder_id"])
     sheet = drive.upload(week.workdir / "creatives.csv", folder, name=f"00 Таблица креативов — {week.run_date}",
                          convert_to=SHEET, mime="text/csv")
-    doc = drive.upload(html_path, folder, name=f"Yolla — сценарии и промпты — {week.run_date}",
+    suffix = f" (пересборка {dt.date.today():%d.%m})" if mf.get("restored_from_drive") else ""
+    doc = drive.upload(html_path, folder, name=f"Yolla — сценарии и промпты — {week.run_date}{suffix}",
                        convert_to=DOC, mime="text/html")
     out = {"folder": drive.link(folder), "sheet": sheet["webViewLink"], "doc": doc["webViewLink"]}
     (week.workdir / "links.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))

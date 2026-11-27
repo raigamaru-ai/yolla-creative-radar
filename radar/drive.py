@@ -92,6 +92,35 @@ class Drive:
         return self.svc.files().get(fileId=file_id, fields="name, driveId, webViewLink",
                                     supportsAllDrives=True).execute()
 
+    def find(self, name: str, parent: str, mime: str | None = None) -> str | None:
+        return self._find(name, parent, mime)
+
+    def list(self, parent: str) -> list[dict]:
+        """Файлы в папке: id, name, mimeType, webViewLink (видны только созданные этим приложением)."""
+        out, token = [], None
+        while True:
+            res = self.svc.files().list(
+                q=f"'{parent}' in parents and trashed = false", pageToken=token, pageSize=1000,
+                fields="nextPageToken, files(id, name, mimeType, webViewLink)",
+                supportsAllDrives=True, includeItemsFromAllDrives=True, corpora="allDrives").execute()
+            out += res.get("files", [])
+            token = res.get("nextPageToken")
+            if not token:
+                return out
+
+    def download(self, file_id: str, dest: Path, export_mime: str | None = None) -> Path:
+        """Скачивает файл; для Google-документов — экспорт в export_mime (например text/csv)."""
+        from googleapiclient.http import MediaIoBaseDownload
+
+        req = (self.svc.files().export_media(fileId=file_id, mimeType=export_mime) if export_mime
+               else self.svc.files().get_media(fileId=file_id, supportsAllDrives=True))
+        with open(dest, "wb") as f:
+            dl = MediaIoBaseDownload(f, req, chunksize=16 * 2**20)
+            done = False
+            while not done:
+                _, done = dl.next_chunk()
+        return dest
+
     def link(self, file_id: str) -> str:
         return self.svc.files().get(fileId=file_id, fields="webViewLink",
                                     supportsAllDrives=True).execute()["webViewLink"]
