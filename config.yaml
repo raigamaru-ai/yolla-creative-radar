@@ -89,16 +89,16 @@ apify:
       onlyTotal: false
   tiktok:
     # TikTok Ad Library показывает только объявления с показами в EU/EEA/UK (требование DSA).
-    # startDate/endDate — период показов; скрипт дополнительно оставляет только активные в окне.
-    actor: "datascoutlab/tiktok-ads-library-scraper"
-    max_items: 24            # на пару «страна × конкурент», страницы по 12
+    # Актор lexis-solutions (≈ $0.5 / 1000 объявлений). Прежний datascoutlab падал с «Unexpected end of JSON input».
+    # advertiserName: актор сначала ищет рекламодателя с таким именем, иначе ищет по тексту объявлений.
+    # Если у конкурента заданы tiktok.advertisers ([{id, name}] из вывода `python -m radar probe`), ищем строго по ним.
+    actor: "lexis-solutions/tiktok-ads-scraper"
+    max_items: 24            # на конкурента за прогон
     input:
-      searchTerms: ["{query}"]
-      searchBy: "broad"
-      regions: ["FR", "DE", "GB", "IT", "ES", "BE"]
+      advertiserName: "{query}"
+      country: "all"
       startDate: "{start_date}"
       endDate: "{end_date}"
       sortBy: "impression,desc"
-      includeDetails: true
-      maxResultsPerQuery: "{max_items}"
+      maxPages: 2
       proxyConfiguration: { useApifyProxy: true }

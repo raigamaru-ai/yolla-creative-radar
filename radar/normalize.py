@@ -174,18 +174,34 @@ def _band(v) -> float | None:
 
 
 def normalize_tiktok(item: dict, competitor: str, today: dt.date) -> dict:
+    """Поля lexis-solutions/tiktok-ads-scraper (adId, adStartDate…) и запасные имена других акторов."""
     ad_id = str(get(item, "adId", "ad_id", "id") or "")
-    first = parse_date(get(item, "firstShownDate", "firstShown", "startDate"))
-    last = parse_date(get(item, "lastShownDate", "lastShown", "endDate"))
-    video = get(item, "videoUrls.0", "videoUrl", "video.url") or find_url(item, [r"\.mp4", r"video"])
-    image = get(item, "imageUrls.0", "imageUrl", "coverUrl")
+    first = parse_date(get(item, "adStartDate", "firstShownDate", "firstShown", "startDate"))
+    last = parse_date(get(item, "adEndDate", "lastShownDate", "lastShown", "endDate"))
+    images = get(item, "adImageUrls", "imageUrls") or []
+    video = (get(item, "adVideoUrl", "videoUrls.0", "videoUrl", "video.url")
+             or find_url({k: v for k, v in item.items() if "cover" not in k.lower()}, [r"\.mp4", r"video_mp4"]))
+    image = (images[0] if isinstance(images, list) and images else None) or get(item, "imageUrl")
+    cover = get(item, "adVideoCover", "coverUrl", "videoCover") or image
     lo, hi = to_num(get(item, "estimatedAudienceMin")), to_num(get(item, "estimatedAudienceMax"))
-    reach = (lo + hi) / 2 if lo is not None and hi is not None else _band(get(item, "estimatedAudience"))
+    reach = ((lo + hi) / 2 if lo is not None and hi is not None
+             else _band(get(item, "adEstimatedAudience", "estimatedAudience", "adImpressions")))
+    by_loc = get(item, "targetingByLocation")
+    if isinstance(by_loc, list):
+        countries = [x.get("region") for x in by_loc if isinstance(x, dict) and x.get("region")]
+    elif isinstance(get(item, "impressionsByCountry"), dict):
+        countries = list(get(item, "impressionsByCountry").keys())
+    else:
+        countries = get(item, "regions", "countries")
+    ad_type = str(get(item, "adType") or "")
     return {
         "creative_id": f"tt_{ad_id}",
+        "advertiser_id": str(get(item, "advertiserId") or ""),
+        "unavailable": str(get(item, "status") or "").lower() == "unavailable",
         "platform": "tiktok",
         "competitor": competitor,
-        "advertiser": _text(get(item, "advertiserName", "paidForBy", "accountUsername")),
+        "advertiser": _text(get(item, "advertiserName", "advertiserPaidForBy", "paidForBy", "accountUsername",
+                                "advertiserTtUserId.display_name")),
         "first_seen": first,
         "last_seen": last,
         "is_active": last is None or last >= today - dt.timedelta(days=2),
@@ -194,15 +210,13 @@ def normalize_tiktok(item: dict, competitor: str, today: dt.date) -> dict:
         "impressions_upper": None,
         "variations": 1,
         "placements": "tiktok",
-        "countries": _list(list((get(item, "impressionsByCountry") or {}).keys())
-                           if isinstance(get(item, "impressionsByCountry"), dict)
-                           else get(item, "regions", "countries")),
-        "format": "video" if video else ("image" if image else ""),
+        "countries": _list(countries),
+        "format": "video" if video or ad_type == "2" else ("image" if image or ad_type == "3" else ""),
         "headline": "",
-        "ad_text": _text(get(item, "adText", "caption"))[:1500],
+        "ad_text": _text(get(item, "adTitle", "adText", "caption"))[:1500],
         "cta": _text(get(item, "callToAction", "cta")),
-        "landing_url": get(item, "externalUrl", "landingPageUrl") or "",
+        "landing_url": get(item, "adLandingUrl", "externalUrl", "landingPageUrl") or "",
         "media_url": video or image or "",
-        "thumbnail_url": image or "",
+        "thumbnail_url": cover or "",
         "library_url": get(item, "adUrl") or (f"https://library.tiktok.com/ads/detail/?ad_id={ad_id}" if ad_id else ""),
     }

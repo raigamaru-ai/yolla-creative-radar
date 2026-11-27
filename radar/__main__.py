@@ -7,6 +7,7 @@ python -m radar publish  [--date ...] [--no-drive]                              
 python -m radar notify   [--date ...] [--text "..."]                                   # отчёт в Telegram (work/<дата>/telegram.md)
 python -m radar telegram-chats                                                         # узнать ID чатов для TELEGRAM_CHAT_IDS
 python -m radar doctor                                                                 # проверка ключей и доступа
+python -m radar probe    [--competitor Talk360] [--days 90]                            # разведка: страницы FB и аккаунты TikTok конкурентов
 python -m radar auth     [--client-secret client_secret.json] [--share-with-link]       # один раз: вход в личный Google Drive
 """
 from __future__ import annotations
@@ -112,10 +113,12 @@ def auth(client_secret: str, share_with_link: bool):
 
 def main():
     ap = argparse.ArgumentParser(prog="radar")
-    ap.add_argument("command", choices=["prep", "restore", "generate", "publish", "notify", "telegram-chats", "doctor", "auth"])
+    ap.add_argument("command", choices=["prep", "restore", "generate", "publish", "notify", "telegram-chats", "doctor", "auth", "probe"])
     ap.add_argument("--date", help="день запуска YYYY-MM-DD (по умолчанию сегодня); окно = 7 дней до него")
     ap.add_argument("--no-drive", action="store_true", help="ничего не загружать в Google Drive")
     ap.add_argument("--fixtures", type=Path, help="читать выдачу Apify из папки вместо запуска акторов")
+    ap.add_argument("--competitor", help="для probe: только этот конкурент")
+    ap.add_argument("--days", type=int, default=90, help="для probe: за сколько дней искать")
     ap.add_argument("--text", help="для notify: отправить этот текст вместо work/<дата>/telegram.md")
     ap.add_argument("--dry-run", action="store_true", help="для generate: только проверить задания и оценить стоимость")
     ap.add_argument("--client-secret", default="client_secret.json", help="для auth: OAuth-клиент (Desktop app)")
@@ -133,6 +136,9 @@ def main():
 
     if a.command == "doctor":
         raise SystemExit(0 if doctor(cfg, week) else 1)
+    if a.command == "probe":
+        collect.probe(cfg, a.competitor, a.days)
+        return
     if a.command == "telegram-chats":
         notify.list_chats()
         return

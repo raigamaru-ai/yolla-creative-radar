@@ -83,8 +83,13 @@ def fetch(cfg: dict, week: Week, fixtures: Path | None = None) -> list[dict]:
                     }
                     print(f"→ {platform} / {name}: {url or values['query']}")
                     try:
-                        cap = int(acfg["max_items"]) * (len(acfg["input"].get("regions", [])) or 1)
-                        items += _run_actor(acfg["actor"], _fill(copy.deepcopy(acfg["input"]), values), cap)
+                        run_input = _fill(copy.deepcopy(acfg["input"]), values)
+                        advertisers = pcfg.get("advertisers") or []
+                        if platform == "tiktok" and advertisers:  # точный поиск по аккаунтам рекламодателя
+                            run_input.pop("advertiserName", None)
+                            run_input["advertisers"] = [{"id": str(a["id"]), "name": a["name"]} for a in advertisers]
+                        cap = int(acfg["max_items"]) * (len(advertisers) if platform == "tiktok" and advertisers else 1)
+                        items += _run_actor(acfg["actor"], run_input, cap)
                     except Exception as e:  # один упавший конкурент не должен ронять весь отчёт
                         print(f"  ! ошибка {platform}/{name}: {e}")
             raw_file.write_text(json.dumps(items, ensure_ascii=False, default=str, indent=1))
@@ -98,11 +103,13 @@ def fetch(cfg: dict, week: Week, fixtures: Path | None = None) -> list[dict]:
                 except Exception as e:
                     print(f"  ! не разобрал объявление: {e}")
                     continue
+                if r.get("unavailable"):
+                    continue  # объявление удалено из библиотеки
                 if pats and r["advertiser"] and not any(p.search(r["advertiser"]) for p in pats):
                     continue  # чужой рекламодатель, попавший в поиск по ключевому слову
                 rows.append(r)
                 kept += 1
-                if r.get("page_id"):
+                if r.get("page_id") and platform == "facebook":
                     discovered.setdefault(name, {})[r["page_id"]] = r["advertiser"]
             print(f"  {platform}/{name}: получено {len(items)}, оставлено {kept}")
     if discovered:
@@ -167,3 +174,69 @@ def write_table(rows: list[dict], week: Week) -> Path:
 def read_table(week: Week) -> list[dict]:
     with open(week.workdir / "creatives.csv", encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def probe(cfg: dict, only: str | None = None, days: int = 90, max_items: int = 40) -> None:
+    """Разведка: под какими страницами FB и аккаунтами TikTok рекламируются конкуренты.
+
+    Ищет широко (любой порядок слов, последние `days` дней), ничего не пишет в Drive.
+    Печатает рекламодателей с числом объявлений: нужные ID вписать в config.yaml
+    (facebook.page_ids, tiktok.advertisers) и сузить match.
+    """
+    import collections
+
+    end = dt.date.today()
+    start = end - dt.timedelta(days=days)
+    fb = cfg["apify"]["facebook"]
+    tt = cfg["apify"]["tiktok"]
+    for comp in cfg["competitors"]:
+        if only and comp["name"].lower() != only.lower():
+            continue
+        q = (comp.get("facebook") or {}).get("query", comp["name"])
+        pats = [re.compile(p, re.I) for p in comp.get("match", [])]
+        print(f"\n=== {comp['name']} (запрос «{q}», {start} … {end})")
+
+        url = ("https://www.facebook.com/ads/library/?active_status=all&ad_type=all&country=ALL&media_type=all"
+               f"&q={urllib.parse.quote(q)}&search_type=keyword_unordered"
+               "&sort_data[mode]=total_impressions&sort_data[direction]=desc"
+               f"&start_date[min]={start}&start_date[max]={end}")
+        try:
+            items = _run_actor(fb["actor"], {**_fill(copy.deepcopy(fb["input"]), {"url": url, "max_items": max_items})},
+                               max_items)
+        except Exception as e:
+            items = []
+            print(f"  ! facebook: {e}")
+        pages = collections.Counter()
+        sample = {}
+        for it in items:
+            try:
+                r = normalize_facebook(it, comp["name"], end)
+            except Exception:
+                continue
+            key = (r["page_id"], r["advertiser"])
+            pages[key] += 1
+            sample.setdefault(key, (r["ad_text"] or r["headline"])[:90])
+        print(f"  Facebook: {len(items)} объявлений, страниц: {len(pages)}")
+        for (pid, name), n in pages.most_common(15):
+            ok = "✓" if pats and any(p.search(name or "") for p in pats) else " "
+            print(f"   {ok} page_id {pid or '—'} · {name or '—'} · {n} объявл. · {sample[(pid, name)]}")
+
+        tq = (comp.get("tiktok") or {}).get("query", comp["name"])
+        run_input = _fill(copy.deepcopy(tt["input"]), {"query": tq, "start_date": start.isoformat(),
+                                                       "end_date": end.isoformat()})
+        try:
+            items = _run_actor(tt["actor"], run_input, max_items)
+        except Exception as e:
+            items = []
+            print(f"  ! tiktok: {e}")
+        accs = collections.Counter()
+        for it in items:
+            try:
+                r = normalize_tiktok(it, comp["name"], end)
+            except Exception:
+                continue
+            accs[(r.get("advertiser_id") or "", r["advertiser"])] += 1
+        print(f"  TikTok (EU): {len(items)} объявлений, рекламодателей: {len(accs)}")
+        for (aid, name), n in accs.most_common(15):
+            ok = "✓" if pats and any(p.search(name or "") for p in pats) else " "
+            print(f"   {ok} advertiser {{id: \"{aid}\", name: \"{name}\"}} · {n} объявл.")
